@@ -3,6 +3,7 @@ import json
 import sys
 
 import pandas as pd
+from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QMouseEvent, QPalette
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
@@ -19,7 +20,8 @@ class MainWindow(QWidget):
         super().__init__()
         self.setWindowTitle("BillEaseBank")
         self.layout = QVBoxLayout()
-
+        self.resize(1024, 576)
+        self.setWindowFlags(QtCore.Qt.WindowType.WindowMaximizeButtonHint | QtCore.Qt.WindowType.WindowMinimizeButtonHint | QtCore.Qt.WindowType.WindowCloseButtonHint)
         palette = QPalette()
 
         palette.setColor(QPalette.Window, QColor("#282a36"))
@@ -44,6 +46,7 @@ class MainWindow(QWidget):
         self.refresh_button = QPushButton("Refresh")
         self.screenshot_checkbox = QCheckBox("Chụp màn hình")
         self.username_label = QLabel("Tên tài khoản")
+        self.username_label.setStyleSheet("color: #8BE9FD;")
         self.username_label.setStyleSheet("border: none;")
         self.username_input = QLineEdit()
         self.bank_combobox = QComboBox()
@@ -84,13 +87,13 @@ class MainWindow(QWidget):
         self.save_button.clicked.connect(self.save_data)
         self.refresh_button.clicked.connect(self.update_table)
         self.screenshot_checkbox.stateChanged.connect(self.toggle_screenshot)
-        with codecs.open('banks.json', 'r', 'utf-8-sig') as f:
+        with codecs.open('backend/banks.json', 'r', 'utf-8-sig') as f:
             banks = json.load(f)
         self.bank_combobox.addItem("Chọn ngân hàng")
         self.bank_combobox.addItems(banks)
         self.fill_default_values()
         self.update_table()
-
+        self.showMaximized()
         self.table.setStyleSheet("""
             QTableWidget::item {
                 padding-top: 3px;
@@ -116,6 +119,10 @@ class MainWindow(QWidget):
                 text-decoration: none;
                 margin: 4px 2px;
                 border-radius: 20px;
+            }
+            QLineEdit {
+                padding: 10px;
+                border-radius: 0px;
             }
             QPushButton {
                 background-color: #6272a4;
@@ -177,8 +184,6 @@ class MainWindow(QWidget):
                 border-radius: 20px;
             }
         """)
-
-        self.showMaximized()
 
     def update_table(self):
         try:
