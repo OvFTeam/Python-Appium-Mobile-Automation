@@ -2,7 +2,6 @@ import codecs
 import json
 import sys
 
-import numpy as np
 import pandas as pd
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QMouseEvent, QPalette
@@ -42,6 +41,7 @@ class MainWindow(QWidget):
         self.start_button = QPushButton("Chạy")
         self.stop_button = QPushButton("Dừng")
         self.save_button = QPushButton("Lưu dữ liệu")
+        self.refresh_button = QPushButton("Refresh")
         self.screenshot_checkbox = QCheckBox("Chụp màn hình")
         self.username_label = QLabel("Tên tài khoản")
         self.username_label.setStyleSheet("border: none;")
@@ -62,19 +62,12 @@ class MainWindow(QWidget):
         self.table.setColumnWidth(0, 20)
         self.table.setColumnWidth(1, 140)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        row_count = len(customer_code)
-        self.table.setRowCount(row_count)
-        index = 0
-        for row in range(row_count):
-            index += 1
-            self.table.setItem(row, 0, QTableWidgetItem(str(index)))
-            self.table.setItem(row, 1, QTableWidgetItem(customer_code[row]))
-            self.table.item(row, 0).setTextAlignment(Qt.AlignCenter)
-            self.table.item(row, 1).setTextAlignment(Qt.AlignCenter)
+
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.scan_button)
         button_layout.addWidget(self.start_button)
         button_layout.addWidget(self.stop_button)
+        button_layout.addWidget(self.refresh_button)
         button_layout.addWidget(self.save_button)
 
         self.layout.addLayout(button_layout)
@@ -89,12 +82,14 @@ class MainWindow(QWidget):
         self.start_button.clicked.connect(self.start_process)
         self.stop_button.clicked.connect(self.stop_process)
         self.save_button.clicked.connect(self.save_data)
+        self.refresh_button.clicked.connect(self.update_table)
         self.screenshot_checkbox.stateChanged.connect(self.toggle_screenshot)
         with codecs.open('banks.json', 'r', 'utf-8-sig') as f:
             banks = json.load(f)
         self.bank_combobox.addItem("Chọn ngân hàng")
         self.bank_combobox.addItems(banks)
         self.fill_default_values()
+        self.update_table()
 
         self.table.setStyleSheet("""
             QTableWidget::item {
@@ -184,6 +179,22 @@ class MainWindow(QWidget):
         """)
 
         self.showMaximized()
+
+    def update_table(self):
+        try:
+            df = pd.read_excel('du_lieu/data.xlsx')
+            customer_code = df.iloc[:, 0].dropna().values.tolist()
+            row_count = len(customer_code)
+            self.table.setRowCount(row_count)
+            index = 0
+            for row in range(row_count):
+                index += 1
+                self.table.setItem(row, 0, QTableWidgetItem(str(index)))
+                self.table.setItem(row, 1, QTableWidgetItem(customer_code[row]))
+                self.table.item(row, 0).setTextAlignment(Qt.AlignCenter)
+                self.table.item(row, 1).setTextAlignment(Qt.AlignCenter)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error occurred while updating table: {str(e)}")
 
     def fill_default_values(self):
         if self.username_input.text().strip() == "":
