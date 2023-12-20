@@ -2,6 +2,8 @@ import codecs
 import json
 import sys
 
+import numpy as np
+import pandas as pd
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QMouseEvent, QPalette
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
@@ -11,7 +13,8 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
 
 import backend.device_selector
 
-
+df = pd.read_excel('du_lieu/data.xlsx')
+customer_code = df.iloc[:, 0].dropna().values.tolist()
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -56,9 +59,18 @@ class MainWindow(QWidget):
         self.table.setShowGrid(True)
         self.table.setHorizontalScrollBarPolicy(
             Qt.ScrollBarAlwaysOff)
+        self.table.setColumnWidth(0, 20)
         self.table.setColumnWidth(1, 140)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-
+        row_count = len(customer_code)
+        self.table.setRowCount(row_count)
+        index = 0
+        for row in range(row_count):
+            index += 1
+            self.table.setItem(row, 0, QTableWidgetItem(str(index)))
+            self.table.setItem(row, 1, QTableWidgetItem(customer_code[row]))
+            self.table.item(row, 0).setTextAlignment(Qt.AlignCenter)
+            self.table.item(row, 1).setTextAlignment(Qt.AlignCenter)
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.scan_button)
         button_layout.addWidget(self.start_button)
@@ -84,58 +96,79 @@ class MainWindow(QWidget):
         self.bank_combobox.addItems(banks)
         self.fill_default_values()
 
+        self.table.setStyleSheet("""
+            QTableWidget::item {
+                padding-top: 3px;
+                padding-bottom: 3px;
+            }
+        """)
+
         self.setStyleSheet("""
-        * {
-            font-family: 'JetBrains Mono', monospace;
-            color: #f8f8f2;
-            background-color: #282a36;
-            font-size: 16px;
-        }
-        QPushButton, QLineEdit, QCheckBox, QTableWidget, QHeaderView::section {
-            font-size: 16px;
-        }
-        QPushButton, QLineEdit {
-            background-color: #44475A;
-            color: #f8f8f2;
-            padding: 15px;
-            text-align: center;
-            text-decoration: none;
-            margin: 4px 2px;
-            border-radius: 20px;
-        }
-        QPushButton {
-            background-color: #6272a4;
-        }
-        QPushButton:hover {
-            background-color: #44475a;
-        }
-        QCheckBox {
-            spacing: 5px;
-        }
-        QCheckBox::indicator {
-            width: 30px;
-            height: 30px;
-            border-radius: 15px;
-        }
-        QCheckBox::indicator:unchecked {
-            background-color: #44475a;
-            border: 1px solid #bd93f9;
-        }
-        QCheckBox::indicator:checked {
-            background-color: #bd93f9;
-        }
-        QTableWidget {
-            background-color: #282a36;
-            color: #f8f8f2;
-            gridline-color: #6272a4;
-        }
-        QHeaderView::section {
-            background-color: #282a36;
-            color: white;
-            padding: 4px;
-            border: none;
-        }
-    """)
+            * {
+                font-family: 'JetBrains Mono', monospace;
+                color: #f8f8f2;
+                background-color: #282a36;
+                font-size: 16px;
+            }
+            QPushButton, QLineEdit, QCheckBox, QTableWidget, QHeaderView::section {
+                font-size: 16px;
+            }
+            QPushButton, QLineEdit {
+                background-color: #44475A;
+                color: #f8f8f2;
+                padding: 15px;
+                text-align: center;
+                text-decoration: none;
+                margin: 4px 2px;
+                border-radius: 20px;
+            }
+            QPushButton {
+                background-color: #6272a4;
+            }
+            QPushButton:hover {
+                background-color: #44475a;
+            }
+            QCheckBox {
+                spacing: 5px;
+            }
+            QCheckBox::indicator {
+                width: 30px;
+                height: 30px;
+                border-radius: 15px;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: #44475a;
+                border: 1px solid #bd93f9;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #bd93f9;
+            }
+            QTableWidget {
+                background-color: #282a36;
+                color: #f8f8f2;
+                gridline-color: #6272a4;
+                border-top-left-radius: 0px;
+                border-top-right-radius: 0px;
+                border-bottom-left-radius: 20px;
+                border-bottom-right-radius: 20px;
+                border: 1px solid #6272a4;
+            }
+            QHeaderView::section {
+                background-color: #282a36;
+                color: white;
+                padding: 4px;
+                border: none;
+            }
+            QTableView {
+                selection-background-color: #6272A4;
+                selection-color: #F8F8F2;
+            }
+            QTableView::item:selected {
+                background-color: #6272A4;
+                color: #F8F8F2;
+                border: none;
+            }
+        """)
         self.bank_combobox.setStyleSheet("""
             QComboBox {
                 background-color: #44475A;
