@@ -11,7 +11,9 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QMessageBox, QPushButton, QTableWidget,
                              QTableWidgetItem, QVBoxLayout, QWidget)
 
+import backend.auto_payment
 import backend.device_selector
+from backend.auto_payment import vpbank
 
 df = pd.read_excel('du_lieu/data.xlsx')
 customer_code = df.iloc[:, 0].dropna().values.tolist()
@@ -23,6 +25,7 @@ class MainWindow(QWidget):
         self.resize(1024, 576)
         self.setWindowFlags(QtCore.Qt.WindowType.WindowMaximizeButtonHint | QtCore.Qt.WindowType.WindowMinimizeButtonHint | QtCore.Qt.WindowType.WindowCloseButtonHint)
         palette = QPalette()
+        self.selected_devices = []
 
         palette.setColor(QPalette.Window, QColor("#282a36"))
         palette.setColor(QPalette.WindowText, Qt.white)
@@ -211,7 +214,9 @@ class MainWindow(QWidget):
         popup.exec_()
 
     def start_process(self):
-        pass
+        with open("selected.json", "r") as file:
+            devices = json.load(file)
+        backend.auto_payment.process_payment(devices, vpbank)
 
     def stop_process(self):
         pass
@@ -342,7 +347,6 @@ class ScanPopup(QDialog):
             checkbox.text() for checkbox in self.device_checkboxes if checkbox.isChecked()]
         selected_device_adb_names = backend.device_selector.select_devices(
             selected_device_names)
-
         if isinstance(selected_device_adb_names, str):
             QMessageBox.warning(self, "Lỗi", selected_device_adb_names)
         else:

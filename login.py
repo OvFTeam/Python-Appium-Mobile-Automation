@@ -1,10 +1,14 @@
 import base64
+import json
+import os.path
+import subprocess
 import sys
 
+import pandas as pd
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QImage, QPixmap
-from PyQt5.QtWidgets import (QApplication, QGridLayout, QHBoxLayout, QLabel,
-                             QLineEdit, QPushButton, QVBoxLayout, QWidget)
+from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit,
+                             QPushButton, QVBoxLayout, QWidget)
 
 
 class LoginForm(QWidget):
@@ -78,7 +82,6 @@ class LoginForm(QWidget):
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.setPlaceholderText('Nhập mật khẩu')
         self.password_input.setStyleSheet("QLineEdit { letter-spacing: 2px; }")
-
         self.login_button = QPushButton('Đăng nhập')
         self.login_button.setCursor(Qt.PointingHandCursor)
         self.login_button.setFocusPolicy(Qt.StrongFocus)
@@ -104,16 +107,51 @@ class LoginForm(QWidget):
     def button_focusInEvent(self, event):
         self.login_button.clearFocus()
 
+    def restorePlaceholderColor(self):
+        if self.password_input.text():
+            self.password_input.setStyleSheet("QLineEdit + QLineEdit::placeholder { color: #f8f8f2; }")
+        else:
+            self.password_input.setStyleSheet("QLineEdit { border: 1px solid red; color: red; }"
+                                              "QLineEdit + QLineEdit::placeholder { color: red; }")
     def login(self):
         username = self.username_input.text()
         password = self.password_input.text()
-
+        df = pd.read_csv('https://docs.google.com/spreadsheets/d/e/2PACX-1vSokeKesy0jlINgtoJAWu8WPIWBUtqBlA6rVKpzYt7Cr0C4u_4mz72WC91gBRicxRTvqoER67VD7Cjx/pub?output=csv',
+                 usecols=[0, 1, 2])
+        df = df.head(20)
+        banks_list = []
+        for index, row in df.iterrows():
+            row_tai_khoan = row.iloc[0]
+            row_mat_khau = row.iloc[1]
+            banks = row.iloc[2].split(",")
+            if username == row_tai_khoan and password == row_mat_khau:
+                self.password_input.setStyleSheet("QLineEdit { border: 1px solid #bd93f9; }")
+                banks_list.extend(banks)
+                if banks_list:
+                    with open('backend/banks.json', 'w') as file:
+                        json.dump(banks_list, file)
+                with open('license', 'w') as file:
+                    file.write('https://github.com/OvFTeam/')
+                subprocess.Popen(['python', 'main.py'])
+                app.quit()
+                break
+        else:
+            self.username_input.clear()
+            self.password_input.clear()
+            self.password_input.setPlaceholderText("Sai tài khoản hoặc mật khẩu")
+            self.password_input.setStyleSheet("QLineEdit { border: 1px solid red; color: red; }"
+                                            "QLineEdit + QLineEdit::placeholder { color: red; }")
+            self.password_input.textChanged.connect(
+                self.restorePlaceholderColor)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    app.setStyle("Fusion")
+    app.setStyle("iOS")
     app.setPalette(app.style().standardPalette())
-
-    login_form = LoginForm()
-    login_form.show()
-    sys.exit(app.exec_())
+    if os.path.exists('license'):
+        subprocess.Popen(['python', 'main.py'])
+        app.quit()
+    else:
+        login_form = LoginForm()
+        login_form.show()
+        sys.exit(app.exec_())

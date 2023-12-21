@@ -2,7 +2,6 @@ import subprocess
 
 
 def get_devices():
-    subprocess.run(["adb", "start-server"])
     devices = {}
     for device in subprocess.run(["adb", "devices", "-l"], capture_output=True).stdout.decode().split("\n")[1:-2]:
         if device.strip():
@@ -20,5 +19,6 @@ def select_devices(selected_device_names):
         if selected_device_name in devices:
             selected_device_adb_names.append(devices[selected_device_name])
         else:
-            return "Error: Device not found"
+            print(selected_device_name)
+            return "Vui lòng kiểm tra lại kết nối"
     return selected_device_adb_names
