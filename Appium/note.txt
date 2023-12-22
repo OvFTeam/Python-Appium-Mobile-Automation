@@ -1,0 +1,13 @@
+# {
+#   "deviceName": "emulator-5554",
+#   "platformName": "Android",
+#   "automationName": "UiAutomator2",
+#   "udid": "emulator-5554"
+# }
+        vp = driver.current_package
+        if vp == "com.vnpay.vpbankonline":
+            print("bat dau chay auto...")
+            time.sleep(1)
+            print("Buoc 1: Xac thuc abcxyz...")
+        else:
+            print(f"Vui long mo VP Bank tren may {device} truoc khi chay")
