@@ -135,13 +135,13 @@ class LoginForm(QWidget):
                 subprocess.Popen(['python', 'main.py'])
                 app.quit()
                 break
-        else:
-            self.username_input.clear()
-            self.password_input.clear()
-            self.password_input.setPlaceholderText("Sai tài khoản hoặc mật khẩu")
-            self.password_input.setStyleSheet("QLineEdit { border: 1px solid red; color: red; }"
-                                            "QLineEdit + QLineEdit::placeholder { color: red; }")
-            self.password_input.textChanged.connect(
+            else:
+                self.username_input.clear()
+                self.password_input.clear()
+                self.password_input.setPlaceholderText("Sai tài khoản hoặc mật khẩu")
+                self.password_input.setStyleSheet("QLineEdit { border: 1px solid red; color: red; }"
+                                                "QLineEdit + QLineEdit::placeholder { color: red; }")
+                self.password_input.textChanged.connect(
                 self.restorePlaceholderColor)
 
 if __name__ == '__main__':

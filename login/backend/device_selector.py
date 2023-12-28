@@ -19,6 +19,5 @@ def select_devices(selected_device_names):
         if selected_device_name in devices:
             selected_device_adb_names.append(devices[selected_device_name])
         else:
-            print(selected_device_name)
-            return "Vui lòng kiểm tra lại kết nối"
+            return "Vui lòng khởi động lại để quét thiết bị Offline"
     return selected_device_adb_names

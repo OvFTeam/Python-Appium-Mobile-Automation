@@ -1,8 +1,17 @@
 import codecs
 import json
+import os
+import subprocess
 import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 import pandas as pd
+from appium import webdriver
+from appium.options.common.base import AppiumOptions
+from appium.webdriver.common.appiumby import AppiumBy
 from PyQt5 import QtCore
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QMouseEvent, QPalette
@@ -10,22 +19,53 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog,
                              QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                              QMessageBox, QPushButton, QTableWidget,
                              QTableWidgetItem, QVBoxLayout, QWidget)
-
-import backend.auto_payment
-import backend.device_selector
-from backend.auto_payment import vpbank
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 df = pd.read_excel('du_lieu/data.xlsx')
 customer_code = df.iloc[:, 0].dropna().values.tolist()
+
+
+def get_devices():
+    devices = {}
+    for device in subprocess.run(["adb", "devices", "-l"], capture_output=True).stdout.decode().split("\n")[1:-2]:
+        if device.strip():
+            device_adb_name = device.split()[0].strip()
+            device_name = subprocess.run(
+                ["adb", "-s", f"{device_adb_name}", "shell", "getprop", "ro.product.model"], capture_output=True).stdout.decode().strip()
+            if device_name:
+                devices[device_name] = device_adb_name
+    return devices
+
+
+devices = get_devices()
+
+
+def select_devices(selected_device_names):
+    selected_device_adb_names = []
+    for selected_device_name in selected_device_names:
+        if selected_device_name in devices:
+            selected_device_adb_names.append(devices[selected_device_name])
+        else:
+            return "Vui lòng khởi động lại để quét thiết bị Offline"
+    return selected_device_adb_names
+
+
+SCREENSHOT_PATH = os.path.join(os.getcwd(), "images")
+
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("BillEaseBank")
         self.layout = QVBoxLayout()
         self.resize(1024, 576)
-        self.setWindowFlags(QtCore.Qt.WindowType.WindowMaximizeButtonHint | QtCore.Qt.WindowType.WindowMinimizeButtonHint | QtCore.Qt.WindowType.WindowCloseButtonHint)
+        self.setWindowFlags(QtCore.Qt.WindowType.WindowMaximizeButtonHint |
+                            QtCore.Qt.WindowType.WindowMinimizeButtonHint | QtCore.Qt.WindowType.WindowCloseButtonHint)
         palette = QPalette()
         self.selected_devices = []
+        self.screenshot = 0
 
         palette.setColor(QPalette.Window, QColor("#282a36"))
         palette.setColor(QPalette.WindowText, Qt.white)
@@ -43,42 +83,44 @@ class MainWindow(QWidget):
         self.setPalette(palette)
 
         self.scan_button = QPushButton("Quét thiết bị")
+        self.scan_button.setStyleSheet("background-color: #FF79C6")
         self.start_button = QPushButton("Chạy")
+        self.start_button.setStyleSheet("background-color: #50FA7B")
+        self.start_button.setCursor(Qt.PointingHandCursor)
         self.stop_button = QPushButton("Dừng")
-        self.save_button = QPushButton("Lưu dữ liệu")
         self.refresh_button = QPushButton("Refresh")
         self.screenshot_checkbox = QCheckBox("Chụp màn hình")
         self.username_label = QLabel("Tên tài khoản")
         self.username_label.setStyleSheet("color: #8BE9FD;")
         self.username_label.setStyleSheet("border: none;")
         self.username_input = QLineEdit()
+        self.userpayment_input = QLineEdit()
         self.bank_combobox = QComboBox()
 
         self.table = QTableWidget()
-        self.table.setColumnCount(3)
+        self.table.setColumnCount(2)
         self.table.setHorizontalHeaderItem(0, QTableWidgetItem("STT"))
         self.table.setHorizontalHeaderItem(
             1, QTableWidgetItem("Mã khách hàng"))
-        self.table.setHorizontalHeaderItem(2, QTableWidgetItem("Trạng thái"))
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setShowGrid(True)
         self.table.setHorizontalScrollBarPolicy(
             Qt.ScrollBarAlwaysOff)
-        self.table.setColumnWidth(0, 20)
+        self.table.setColumnWidth(0, 60)
         self.table.setColumnWidth(1, 140)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.scan_button)
         button_layout.addWidget(self.start_button)
         button_layout.addWidget(self.stop_button)
         button_layout.addWidget(self.refresh_button)
-        button_layout.addWidget(self.save_button)
 
         self.layout.addLayout(button_layout)
         self.layout.addWidget(self.username_label, alignment=Qt.AlignCenter)
         self.layout.addWidget(self.username_input)
+        self.layout.addWidget(self.userpayment_input)
         self.layout.addWidget(self.bank_combobox)
         self.layout.addWidget(self.screenshot_checkbox)
         self.layout.addWidget(self.table)
@@ -87,16 +129,18 @@ class MainWindow(QWidget):
         self.scan_button.clicked.connect(self.scan_devices)
         self.start_button.clicked.connect(self.start_process)
         self.stop_button.clicked.connect(self.stop_process)
-        self.save_button.clicked.connect(self.save_data)
         self.refresh_button.clicked.connect(self.update_table)
         self.screenshot_checkbox.stateChanged.connect(self.toggle_screenshot)
-        with codecs.open('backend/banks.json', 'r', 'utf-8-sig') as f:
-            banks = json.load(f)
+        try:
+            with codecs.open('permission/banks.json', 'r', 'utf-8-sig') as f:
+                banks = json.load(f)
+        except:
+            quit()
         self.bank_combobox.addItem("Chọn ngân hàng")
         self.bank_combobox.addItems(banks)
         self.fill_default_values()
         self.update_table()
-        self.showMaximized()
+        # self.showMaximized()
         self.table.setStyleSheet("""
             QTableWidget::item {
                 padding-top: 3px;
@@ -198,15 +242,19 @@ class MainWindow(QWidget):
             for row in range(row_count):
                 index += 1
                 self.table.setItem(row, 0, QTableWidgetItem(str(index)))
-                self.table.setItem(row, 1, QTableWidgetItem(customer_code[row]))
+                self.table.setItem(
+                    row, 1, QTableWidgetItem(customer_code[row]))
                 self.table.item(row, 0).setTextAlignment(Qt.AlignCenter)
                 self.table.item(row, 1).setTextAlignment(Qt.AlignCenter)
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error occurred while updating table: {str(e)}")
+            QMessageBox.critical(
+                self, "Error", f"Error occurred while updating table: {str(e)}")
 
     def fill_default_values(self):
         if self.username_input.text().strip() == "":
             self.username_input.setPlaceholderText("Điền tên tài khoản")
+            self.userpayment_input.setPlaceholderText(
+                "Điền tên người thanh toán")
             self.bank_combobox.setCurrentText("Chọn ngân hàng")
 
     def scan_devices(self):
@@ -214,24 +262,122 @@ class MainWindow(QWidget):
         popup.exec_()
 
     def start_process(self):
-        with open("selected.json", "r") as file:
-            devices = json.load(file)
-        backend.auto_payment.process_payment(devices, vpbank)
+        self.start_button.setEnabled(False)
+        self.start_button.setStyleSheet("background-color: #bd93f9")
+        self.stop_button.setEnabled(True)
+        bank = self.bank_combobox.currentText()
+        username = self.username_input.text()
+        userpayment = self.userpayment_input.text()
+        df = pd.read_excel('du_lieu/data.xlsx')
+        customer_code = df.iloc[:, 0].dropna().values.tolist()
+        if bank == "VPBank":
+            vpbank_thread = threading.Thread(target=self.vpbank)
+            vpbank_thread.start()
+        else:
+            error = Error("Vui chọn ngân hàng!")
+            error.exec_()
+            self.start_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+            pass
 
     def stop_process(self):
         pass
 
-    def save_data(self):
-        pass
-
     def toggle_screenshot(self, state):
-        print(state)
+        self.screenshot = state
+
+    def vpbank(self, screenshot=0):
+        screenshot = self.screen_shot
+
+        def run(device, count, screenshot=False):
+            options = AppiumOptions()
+            options.load_capabilities({
+                "deviceName": f"{device}",
+                "platformName": "Android",
+                "automationName": "UiAutomator2",
+                "udid": f"{device}"
+            })
+
+            try:
+                driver = webdriver.Remote(
+                    "http://127.0.0.1:4723", options=options)
+            except:
+                driver = webdriver.Remote(
+                    "http://127.0.0.1:4723", options=options)
+            try:
+                wait = WebDriverWait(driver, 5)
+                wait_thanh_toan_hoa_don = wait.until(EC.presence_of_element_located(
+                    (AppiumBy.XPATH, "(//android.widget.ImageView[@resource-id=\"com.vnpay.vpbankonline:id/icon\"])[1]")))
+                wait_thanh_toan_hoa_don.click()
+                random_name = datetime.now().strftime("%H_%M_%S")
+                if screenshot:
+                    image_path = os.path.join(
+                        SCREENSHOT_PATH, f"{count}_Bill_VPBank_{random_name}.png")
+                    os.system(
+                        f"adb -s {device} exec-out screencap -p > {image_path}")
+                driver.quit()
+            except NoSuchElementException:
+                pass
+            except:
+                os.system("adb kill-server")
+                driver = webdriver.Remote(
+                    "http://127.0.0.1:4723", options=options)
+                wait = WebDriverWait(driver, 5)
+                wait_thanh_toan_hoa_don = wait.until(EC.presence_of_element_located(
+                    (AppiumBy.XPATH, "(//android.widget.ImageView[@resource-id=\"com.vnpay.vpbankonline:id/icon\"])[1]")))
+                wait_thanh_toan_hoa_don.click()
+                time.sleep(2)
+                random_name = datetime.now().strftime("%H_%M_%S")
+                if screenshot:
+                    image_path = os.path.join(
+                        SCREENSHOT_PATH, f"{count}_Bill_VPBank_{random_name}.png")
+                    os.system(
+                        f"adb -s {device} exec-out screencap -p > {image_path}")
+                driver.quit()
+
+        screen_shot = False
+        if screenshot == 2:
+            screen_shot = True
+
+        def process_payment(func):
+            with open('selected.json', 'r') as file:
+                data = json.load(file)
+            devices = data
+            max_threads = len(devices)
+            executor = ThreadPoolExecutor(max_workers=max_threads)
+            futures = []
+            for count, device in enumerate(devices, start=1):
+                futures.append(executor.submit(
+                    func, device, count, screen_shot))
+            for future in futures:
+                future.result()
+        process_payment(run)
+        self.start_button.setEnabled(True)
+        self.start_button.setStyleSheet("background-color: #50FA7B")
+        self.start_button.setCursor(Qt.PointingHandCursor)
+
+
+class Error(QDialog):
+    def __init__(self, message):
+        super().__init__()
+        self.setWindowTitle("Lỗi")
+        self.setWindowFlag(Qt.WindowCloseButtonHint)
+        self.setWindowFlag(Qt.WindowMinimizeButtonHint)
+        self.setFixedSize(200, 100)
+        self.message = QLabel(message)
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.message)
+        self.setLayout(self.layout)
+
+        self.setStyleSheet("background-color: #282a36;")
+        self.message.setStyleSheet(
+            "color: white; text-align: center; font-size: 20px;")
 
 
 class ScanPopup(QDialog):
     def __init__(self):
         super().__init__()
-        self.devices = backend.device_selector.get_devices()
+        self.devices = get_devices()
         self.selected_devices = []
 
         self.setWindowTitle("Chọn thiết bị khởi chạy")
@@ -345,7 +491,7 @@ class ScanPopup(QDialog):
     def save_devices(self):
         selected_device_names = [
             checkbox.text() for checkbox in self.device_checkboxes if checkbox.isChecked()]
-        selected_device_adb_names = backend.device_selector.select_devices(
+        selected_device_adb_names = select_devices(
             selected_device_names)
         if isinstance(selected_device_adb_names, str):
             QMessageBox.warning(self, "Lỗi", selected_device_adb_names)
@@ -361,5 +507,6 @@ class ScanPopup(QDialog):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
+    subprocess.Popen(["cmd", "/c", "appium", "--session-override"])
     window.show()
     sys.exit(app.exec_())
