@@ -126,10 +126,12 @@ class LoginForm(QWidget):
             banks = row.iloc[2].split(",")
             if username == row_tai_khoan and password == row_mat_khau:
                 self.password_input.setStyleSheet("QLineEdit { border: 1px solid #bd93f9; }")
+                directory = 'permission'
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
                 banks_list.extend(banks)
-                if banks_list:
-                    with open('backend/banks.json', 'w') as file:
-                        json.dump(banks_list, file)
+                with open(os.path.join(directory, 'banks.json'), 'w') as file:
+                    json.dump(banks_list, file)
                 with open('license', 'w') as file:
                     file.write('https://github.com/OvFTeam/')
                 subprocess.Popen(['python', 'main.py'])
